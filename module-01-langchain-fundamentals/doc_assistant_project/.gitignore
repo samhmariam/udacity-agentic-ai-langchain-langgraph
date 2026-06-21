@@ -24,7 +24,3 @@ htmlcov/
 dist/
 build/
 *.egg-info/
-
-# Local sessions
-sessions/
-logs/
