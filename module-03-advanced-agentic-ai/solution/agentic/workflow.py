@@ -8,6 +8,7 @@ injected so their tools and persistence can be implemented independently.
                     +----------+-> escalation -> END
 """
 
+import os
 from collections.abc import Callable
 from functools import partial
 from typing import Any, Literal
@@ -25,12 +26,21 @@ from agentic.agents.classifier import (
     build_classifier,
     classify_ticket,
 )
+from agentic.agents.escalation import build_escalation_agent, escalate_ticket
+from agentic.agents.resolver import resolve_ticket
 from agentic.state import (
     Route,
     SupportState,
     TicketCategory,
     TicketClassification,
 )
+from agentic.tools.database import (
+    DEFAULT_CORE_DB,
+    DEFAULT_EXTERNAL_DB,
+    CoreRepository,
+    ExternalRepository,
+)
+from agentic.tools.knowledge import SemanticKnowledgeBase
 
 
 CLASSIFICATION_CONFIDENCE_THRESHOLD = 0.75
@@ -142,8 +152,49 @@ def build_orchestrator(
     )
 
 
+def build_default_orchestrator() -> CompiledStateGraph:
+    """Build the notebook-ready CultPass workflow with real Lane B nodes."""
+
+    model = ChatOpenAI(model="gpt-4o-mini")
+    core_repository = CoreRepository(DEFAULT_CORE_DB)
+    external_repository = ExternalRepository(DEFAULT_EXTERNAL_DB)
+    knowledge_retriever = SemanticKnowledgeBase(DEFAULT_CORE_DB)
+    escalation_agent = build_escalation_agent(model)
+
+    return build_orchestrator(
+        model=model,
+        resolver_node=partial(
+            resolve_ticket,
+            model=model,
+            core_repository=core_repository,
+            external_repository=external_repository,
+            knowledge_retriever=knowledge_retriever,
+        ),
+        escalation_node=partial(
+            escalate_ticket,
+            escalation_agent=escalation_agent,
+            core_repository=core_repository,
+        ),
+    )
+
+
+def _default_components_available() -> bool:
+    return bool(
+        os.getenv("OPENAI_API_KEY")
+        and DEFAULT_CORE_DB.is_file()
+        and DEFAULT_EXTERNAL_DB.is_file()
+    )
+
+
+# The notebook loads .env before importing this module. Tests and static imports
+# remain API-key free and can call build_orchestrator with fake dependencies.
+orchestrator = build_default_orchestrator() if _default_components_available() else None
+
+
 __all__ = [
     "build_orchestrator",
+    "build_default_orchestrator",
+    "orchestrator",
     "route_after_classification",
     "route_after_resolution",
 ]
