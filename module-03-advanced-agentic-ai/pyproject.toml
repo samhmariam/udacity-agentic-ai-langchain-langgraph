@@ -14,6 +14,8 @@ dependencies = [
     "langchain-openai>=1.3.3",
     "langgraph>=1.2.7",
     "langgraph-supervisor>=0.0.31",
+    "langmem>=0.0.30",
+    "pytest>=9.1.1",
     "python-dotenv>=1.2.2",
     "sqlalchemy>=2.0.51",
 ]
